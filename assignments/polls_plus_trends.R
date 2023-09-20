@@ -27,6 +27,17 @@ polls_date_latest <- polls_url |>
   stringr::str_sub(start = 17L) |>
   lubridate::mdy()
 
+# Vector of candidates ####
+candidates <- polls_url |>
+  rvest::read_html() |>
+  rvest::html_elements("th") |>
+  rvest::html_text() |>
+  stringr::str_squish() |>
+  tibble::as_tibble() |>
+  dplyr::filter(!value %in% c("Date","Pollster","Sample")) |>
+  dplyr::pull(value) |>
+  as.character()
+
 # Number of candidates currently polled
 polls_n_candidates <- polls_url |>
   rvest::read_html() |>
@@ -47,16 +58,11 @@ polls_raw <- polls_url |>
   rvest::html_text() |>
   tibble::as_tibble() |>
   # Pivot and rename variables
-  dplyr::mutate(var = rep(c("date","pollster","sample","Bulstrode","Lydgate","Vincy","Casaubon","Chettam","Others"),times=n()/polls_n_candidates)) |>
+  dplyr::mutate(var = rep(c("date","pollster","sample",candidates),times=n()/(3+polls_n_candidates))) |>
   tidyr::pivot_wider(names_from = var, values_from = value, values_fn = list) |>
   tidyr::unnest(cols = everything()) |>
   # Drop first row with name of columns
   dplyr::slice(-1)
-
-# Vector of candidates ####
-candidates <- polls_raw |>
-  dplyr::select(-date,-pollster,-sample) |>
-  colnames()
 
 ## Cleaning poll data ####
 polls_clean <- polls_raw |>
