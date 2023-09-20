@@ -27,6 +27,17 @@ polls_date_latest <- polls_url |>
   stringr::str_sub(start = 17L) |>
   lubridate::mdy()
 
+# Number of candidates currently polled
+polls_n_candidates <- polls_url |>
+  rvest::read_html() |>
+  rvest::html_elements("th") |>
+  rvest::html_text() |>
+  stringr::str_squish() |>
+  tibble::as_tibble() |>
+  dplyr::filter(!value %in% c("Date","Pollster","Sample")) |>
+  dplyr::tally() |>
+  as.numeric()
+
 ## Poll dataframe ####
 polls_raw <- polls_url |>
   rvest::read_html() |>
@@ -36,7 +47,7 @@ polls_raw <- polls_url |>
   rvest::html_text() |>
   tibble::as_tibble() |>
   # Pivot and rename variables
-  dplyr::mutate(var = rep(c("date","pollster","sample","Bulstrode","Lydgate","Vincy","Casaubon","Chettam","Others"),times=n()/9)) |>
+  dplyr::mutate(var = rep(c("date","pollster","sample","Bulstrode","Lydgate","Vincy","Casaubon","Chettam","Others"),times=n()/polls_n_candidates)) |>
   tidyr::pivot_wider(names_from = var, values_from = value, values_fn = list) |>
   tidyr::unnest(cols = everything()) |>
   # Drop first row with name of columns
@@ -98,11 +109,11 @@ dataland_loess <- polls_corrections |>
   dplyr::mutate(
     model_loess = list(
       loess(vote_intention ~ duration, span = 0.75, data = data, na.action=na.exclude)
-      ),
+    ),
     predicted = list(
       broom::augment(model_loess, data)
-      ) 
-      ) |>
+    ) 
+  ) |>
   dplyr::select(candidate, predicted) |>
   tidyr::unnest(predicted) |>
   dplyr::ungroup()
@@ -113,5 +124,5 @@ trends_export <- dataland_loess |>
   dplyr::select(candidate, id, date, trends=.fitted) |>
   tidyr::pivot_wider(names_from = candidate, values_from = trends) |>
   dplyr::mutate(across(all_of(candidates),~./100))
-  
+
 write_csv(trends_export,paste0(today(),"_trends.csv"))
